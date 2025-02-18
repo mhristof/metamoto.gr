@@ -5,69 +5,97 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product List</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            padding: 0;
-            background-color: #f4f4f4;
-        }
-        #search-bar {
-            margin-bottom: 20px;
-            padding: 10px;
-            width: 100%;
-            font-size: 16px;
-            display: block;
-        }
-        .table-container {
-            overflow-x: auto;
-            margin-top: 10px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 5px;
-            overflow: hidden;
-            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-        }
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-            white-space: nowrap;
-        }
-        th {
-            background: #f8f8f8;
-            font-weight: bold;
-        }
-        .product-image {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
-            border-radius: 3px;
-        }
-        .price {
-            font-weight: bold;
-            color: green;
-            cursor: pointer;
-        }
-        .price-history {
-            display: none;
-        }
-        .chart-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 10px auto;
-            display: none;
-        }
-        #loading {
-            text-align: center;
-            padding: 20px;
-            font-size: 18px;
-            display: none;
-        }
-    </style>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        display: flex;
+        flex-direction: column; /* Arrange children vertically */
+        justify-content: flex-start; /* Keep everything starting from the top */
+        align-items: center; /* Center horizontally */
+        height: 100vh;
+    }
+
+    #search-bar {
+        margin-top: 20px; /* Space between top and search bar */
+        padding: 8px;
+        width: 100%;
+        font-size: 14px;
+        display: block;
+        max-width: 800px; /* Max width for search bar */
+        margin-bottom: 20px; /* Space below search bar */
+    }
+
+    .table-container {
+        width: 80%; /* Table will take 80% of the screen width */
+        overflow-x: auto;
+        margin-top: 10px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 5px;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        table-layout: auto; /* Let content control column width */
+    }
+
+    th, td {
+        padding: 8px 12px; /* Reasonable padding for all cells */
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        vertical-align: middle;
+    }
+
+    th {
+        background: #f8f8f8;
+        font-weight: bold;
+    }
+
+    .product-image {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 3px;
+        display: block;
+    }
+
+    .price {
+        font-weight: bold;
+        color: green;
+        cursor: pointer;
+        text-align: right;
+    }
+
+    .price-history {
+        display: none;
+    }
+
+    .chart-container {
+        width: 100%;
+        max-width: 500px;
+        margin: 5px auto;
+        display: none;
+    }
+
+    #loading {
+        text-align: center;
+        padding: 10px;
+        font-size: 14px;
+        display: none;
+    }
+
+    /* Adjusted column sizes */
+    td:nth-child(1) { width: 50px; text-align: center; } /* Image column width */
+    td:nth-child(2) { width: 50%; white-space: nowrap; } /* Name column */
+    td:nth-child(3) { width: 100px; text-align: center; } /* SKU */
+    td:nth-child(4) { width: 90px; text-align: right; } /* Price */
+</style>
+
+
 </head>
 <body>
 
