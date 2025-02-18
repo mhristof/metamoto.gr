@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product List (Infinite Scroll)</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 20px; }
+        input, select { margin-bottom: 10px; padding: 10px; width: 100%; box-sizing: border-box; font-size: 16px; }
+        .filters { margin-bottom: 20px; }
+
+        /* Text-focused product list */
+        .product-list { width: 100%; border-collapse: collapse; }
+        .product-list th, .product-list td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+        .product-list th { background-color: #f5f5f5; font-weight: bold; }
+        .product-list td img { width: 50px; height: auto; vertical-align: middle; margin-right: 10px; }
+
+        /* Loading indicator */
+        .loading { text-align: center; padding: 20px; font-size: 16px; display: none; }
+    </style>
+</head>
+<body>
+    <h1>Product List</h1>
+
+    <!-- Search and Filter Bar -->
+    <div class="filters">
+        <input type="text" id="search" placeholder="Search for products...">
+        <select id="categoryFilter">
+            <option value="">All Categories</option>
+        </select>
+    </div>
+
+    <!-- Product Table -->
+    <table class="product-list">
+        <thead>
+            <tr>
+                <th>Image</th>
+                <th>Product Name</th>
+                <th>Price</th>
+                <th>SKU</th>
+                <th>Category</th>
+            </tr>
+        </thead>
+        <tbody id="products"></tbody>
+    </table>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading">Loading more products...</div>
+
+    <script>
+        let products = [];
+        let filteredProducts = [];
+        let currentIndex = 0;
+        const itemsPerLoad = 50;
+        let loading = false;
+
+        document.addEventListener("DOMContentLoaded", function() {
+            console.log("JavaScript Loaded!");
+
+            fetch("product_list.json?t=" + new Date().getTime()) // Prevent caching
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Products Loaded:", data.length);
+                    products = data;
+                    filteredProducts = [...products]; // Default to all products
+                    renderNextBatch();
+                    populateCategoryFilter();
+                })
+                .catch(error => console.error("Error loading JSON:", error));
+
+            document.getElementById("search").addEventListener("input", filterProducts);
+            document.getElementById("categoryFilter").addEventListener("change", filterProducts);
+            window.addEventListener("scroll", handleScroll);
+        });
+
+        function renderNextBatch() {
+            if (loading) return;
+            loading = true;
+
+            const container = document.getElementById("products");
+            const start = currentIndex;
+            const end = Math.min(start + itemsPerLoad, filteredProducts.length);
+            const pageProducts = filteredProducts.slice(start, end);
+
+            if (pageProducts.length === 0) {
+                document.getElementById("loading").style.display = "none";
+                return;
+            }
+
+            pageProducts.forEach(product => {
+                container.innerHTML += `
+                    <tr>
+                        <td><img src="${product.image_url}" alt="${product.name}"></td>
+                        <td><a href="${product.url}" target="_blank">${product.name}</a></td>
+                        <td>${product.price}</td>
+                        <td>${product.sku}</td>
+                        <td>${product.category}</td>
+                    </tr>
+                `;
+            });
+
+            currentIndex = end;
+            loading = false;
+
+            // Hide loading indicator if all products are loaded
+            if (currentIndex >= filteredProducts.length) {
+                document.getElementById("loading").style.display = "none";
+            }
+        }
+
+        function populateCategoryFilter() {
+            const categories = [...new Set(products.map(p => p.category))].sort();
+            const categoryFilter = document.getElementById("categoryFilter");
+            categories.forEach(category => {
+                categoryFilter.innerHTML += `<option value="${category}">${category}</option>`;
+            });
+        }
+
+        function filterProducts() {
+            const searchTerm = document.getElementById("search").value.toLowerCase();
+            const category = document.getElementById("categoryFilter").value;
+
+            filteredProducts = products.filter(product =>
+                (product.name.toLowerCase().includes(searchTerm) || product.sku.includes(searchTerm)) &&
+                (category === "" || product.category === category)
+            );
+
+            currentIndex = 0; // Reset to first batch
+            document.getElementById("products").innerHTML = ""; // Clear current list
+            renderNextBatch();
+        }
+
+        function handleScroll() {
+            const scrollPosition = window.innerHeight + window.scrollY;
+            const documentHeight = document.documentElement.offsetHeight;
+
+            if (scrollPosition >= documentHeight - 100 && currentIndex < filteredProducts.length) {
+                document.getElementById("loading").style.display = "block";
+                setTimeout(renderNextBatch, 500); // Simulate loading delay
+            }
+        }
+    </script>
+</body>
+</html>
