@@ -3,133 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product List with Expandable Price Graph</title>
-    
-    <!-- Chart.js & Luxon for Time-Based Charts -->
+    <title>Product List</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@3.2.1/build/global/luxon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
-
     <style>
         body {
             font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        #search-bar {
+            margin-bottom: 20px;
+            padding: 10px;
+            width: 100%;
+            font-size: 16px;
+            display: block;
+        }
+        .table-container {
+            overflow-x: auto;
+            margin-top: 10px;
         }
         table {
             width: 100%;
             border-collapse: collapse;
+            background: white;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
         }
         th {
-            background-color: #f4f4f4;
+            background: #f8f8f8;
+            font-weight: bold;
+        }
+        .product-image {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 3px;
+        }
+        .price {
+            font-weight: bold;
+            color: green;
+            cursor: pointer;
+        }
+        .price-history {
+            display: none;
         }
         .chart-container {
             width: 100%;
-            height: 300px;
+            max-width: 600px;
+            margin: 10px auto;
+            display: none;
         }
-        .toggle-chart {
-            cursor: pointer;
-            color: blue;
-            text-decoration: underline;
+        #loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <h1>Product List with Expandable Price Graph</h1>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Image</th>
-                <th>Product Name</th>
-                <th>Price</th>
-                <th>SKU</th>
-                <th>Category</th>
-            </tr>
-        </thead>
-        <tbody id="productTable">
-            <!-- Products will be dynamically inserted here -->
-        </tbody>
-    </table>
+    <input type="text" id="search-bar" placeholder="Search products..." onkeyup="filterProducts()">
+
+    <div class="table-container">
+        <table id="product-table">
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Name</th>
+                    <th>SKU</th>
+                    <th>Price (€)</th>
+                </tr>
+            </thead>
+            <tbody id="product-list"></tbody>
+        </table>
+    </div>
+
+    <div id="loading">Loading more products...</div>
 
     <script>
-        let charts = {};  // Store active chart instances
+        let products = [];
+        let currentIndex = 0;
+        const batchSize = 20; // Number of products per load
 
-        async function loadProducts() {
-            const response = await fetch("product_list.json");
-            const products = await response.json();
-            const tableBody = document.getElementById("productTable");
+        document.addEventListener("DOMContentLoaded", async function () {
+            try {
+                const response = await fetch("product_list.json");
+                products = Object.values(await response.json()); // Convert dictionary to array
 
-            products.forEach((product, index) => {
+                if (!products.length) {
+                    console.error("❌ No products found.");
+                    return;
+                }
+
+                loadMoreProducts(); // Load first batch
+
+                // Attach scroll event for infinite scrolling
+                window.addEventListener("scroll", handleScroll);
+            } catch (error) {
+                console.error("Error loading products:", error);
+            }
+        });
+
+        function loadMoreProducts() {
+            const productList = document.getElementById("product-list");
+            if (!productList) return;
+
+            let endIndex = currentIndex + batchSize;
+            const productsToLoad = products.slice(currentIndex, endIndex);
+            const startIndex = currentIndex; // Track where the new batch starts
+            currentIndex = endIndex;
+
+            productsToLoad.forEach((product, index) => {
+                const uniqueIndex = startIndex + index; // Unique index for correct toggling
+
                 const row = document.createElement("tr");
-                row.innerHTML = `
-                    <td><img src="${product.image_url}" width="50"></td>
-                    <td><a href="${product.url}" target="_blank">${product.name}</a></td>
-                    <td class="toggle-chart" data-index="${index}" style="cursor:pointer; color:blue; text-decoration:underline;">${product.price}</td>
-                    <td>${product.sku}</td>
-                    <td>${product.category}</td>
-                `;
-                tableBody.appendChild(row);
 
-                // Create hidden chart row
-                const chartRow = document.createElement("tr");
-                chartRow.style.display = "none";
-                chartRow.innerHTML = `
-                    <td colspan="5">
-                        <div class="chart-container" id="chart-container-${index}" style="width:100%; height:300px;">
-                            <canvas id="chart-${index}"></canvas>
+                // Price history row (hidden by default)
+                let priceHistoryRow = document.createElement("tr");
+                priceHistoryRow.className = "price-history";
+                priceHistoryRow.style.display = "none";
+                priceHistoryRow.innerHTML = `
+                    <td colspan="4">
+                        <div class="chart-container" id="chart-container-${uniqueIndex}">
+                            <canvas id="chart-${uniqueIndex}"></canvas>
                         </div>
                     </td>
                 `;
-                tableBody.appendChild(chartRow);
 
-                // Attach click event for expanding/collapsing the chart
-                row.querySelector(".toggle-chart").addEventListener("click", () => {
-                    const chartContainer = document.getElementById(`chart-container-${index}`);
-                    if (chartRow.style.display === "none") {
-                        chartRow.style.display = "table-row";  // Expand row
-                        createPriceChart(`chart-${index}`, product.price_history);
-                    } else {
-                        chartRow.style.display = "none";  // Collapse row
-                        if (charts[`chart-${index}`]) {
-                            charts[`chart-${index}`].destroy();
-                            delete charts[`chart-${index}`];
-                        }
-                    }
+                row.innerHTML = `
+                    <td><img src="${product.image_url}" class="product-image"></td>
+                    <td><a href="${product.url}" target="_blank">${product.name}</a></td>
+                    <td>${product.sku}</td>
+                    <td class="price" data-index="${uniqueIndex}">
+                        ${product.price_history[product.price_history.length - 1].price}€
+                    </td>
+                `;
+
+                // Attach event listener for price history toggle
+                row.querySelector(".price").addEventListener("click", function () {
+                    togglePriceHistory(uniqueIndex);
                 });
+
+                productList.appendChild(row);
+                productList.appendChild(priceHistoryRow);
+
+                if (product.price_history && product.price_history.length > 0) {
+                    createPriceChart(uniqueIndex, product.price_history);
+                }
             });
+
+            // Hide loading indicator after loading products
+            document.getElementById("loading").style.display = "none";
         }
 
-        function createPriceChart(canvasId, priceHistory) {
-            const ctx = document.getElementById(canvasId).getContext("2d");
+        function handleScroll() {
+            const scrollPosition = window.innerHeight + window.scrollY;
+            const documentHeight = document.documentElement.scrollHeight;
 
-            // Destroy previous chart if it exists
-            if (charts[canvasId]) {
-                charts[canvasId].destroy();
+            if (scrollPosition >= documentHeight - 50) { // Close to bottom
+                document.getElementById("loading").style.display = "block";
+                setTimeout(loadMoreProducts, 500);
             }
+        }
 
-            // Convert price history to chart data
-            const chartData = priceHistory.map(entry => ({
-                x: new Date(entry.date),  // Convert to Date object
-                y: entry.price
-            }));
+        function togglePriceHistory(index) {
+            const historyRow = document.querySelector(`#chart-container-${index}`).parentElement.parentElement;
+            if (historyRow) {
+                const chartContainer = document.getElementById(`chart-container-${index}`);
+                historyRow.style.display = historyRow.style.display === "none" ? "table-row" : "none";
+                chartContainer.style.display = historyRow.style.display === "table-row" ? "block" : "none";
+            }
+        }
 
-            // Create new chart
-            charts[canvasId] = new Chart(ctx, {
+        function createPriceChart(index, priceHistory) {
+            const ctx = document.getElementById(`chart-${index}`).getContext("2d");
+            const dates = priceHistory.map(entry => entry.date);
+            const prices = priceHistory.map(entry => entry.price);
+
+            new Chart(ctx, {
                 type: "line",
                 data: {
+                    labels: dates,
                     datasets: [{
                         label: "Price (€)",
-                        data: chartData,
-                        borderColor: "blue",
-                        backgroundColor: "rgba(0, 0, 255, 0.2)",
-                        pointBackgroundColor: "blue",
-                        pointRadius: 5,
-                        fill: false
+                        data: prices,
+                        borderColor: "green",
+                        backgroundColor: "rgba(0, 128, 0, 0.2)",
+                        borderWidth: 2
                     }]
                 },
                 options: {
@@ -137,37 +206,26 @@
                     maintainAspectRatio: false,
                     scales: {
                         x: {
-                            type: "time",
-                            time: {
-                                unit: "day",
-                                tooltipFormat: "yyyy-MM-dd",
-                                displayFormats: {
-                                    day: "MMM d"  // Format to show "Feb 18"
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: "Date"
-                            }
+                            title: { display: true, text: "Date" }
                         },
                         y: {
-                            title: {
-                                display: true,
-                                text: "Price (€)"
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
+                            title: { display: true, text: "Price (€)" }
                         }
                     }
                 }
             });
         }
 
-        // Load products on page load
-        loadProducts();
+        function filterProducts() {
+            const searchQuery = document.getElementById("search-bar").value.toLowerCase();
+            const rows = document.querySelectorAll("#product-table tbody tr");
+
+            rows.forEach(row => {
+                if (row.classList.contains("price-history")) return; // Ignore price history rows
+                const name = row.querySelector("td:nth-child(2) a").innerText.toLowerCase();
+                row.style.display = name.includes(searchQuery) ? "table-row" : "none";
+            });
+        }
     </script>
 
 </body>
