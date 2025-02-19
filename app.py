@@ -29,7 +29,7 @@ def get_products():
             max(p.timestamp) AS timestamp
         FROM default.products p
         JOIN default.product_metadata m ON p.sku = m.sku
-        WHERE m.name ILIKE %(query)s OR m.category ILIKE %(query)s
+        WHERE m.name ILIKE %(query)s OR m.sku ILIKE %(query)s
         GROUP BY p.sku
         ORDER BY name ASC
         LIMIT %(limit)s OFFSET %(offset)s
@@ -50,7 +50,7 @@ def get_products():
             "category": row[2],
             "url": row[3],
             "image_url": row[4],
-            "price": float(row[5]),  # Make sure to adjust if needed
+            "price": float(row[5]),  # Adjust factor if needed
             "timestamp": row[6]
         }
         for row in results
