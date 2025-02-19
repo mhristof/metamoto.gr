@@ -58,6 +58,9 @@
     const limit = 20;
     let loading = false;
     let query = "";
+    
+    // Global object to store Chart instances keyed by SKU
+    const charts = {};
 
     async function fetchProducts() {
       if (loading) return;
@@ -118,7 +121,14 @@
 
     async function togglePriceGraph(element, sku) {
       const chartRow = element.closest("tr").nextElementSibling;
+      const canvasId = `chart-${sku}`;
+
+      // If chart is already displayed, destroy the chart and hide the container
       if (chartRow.style.display === "table-row") {
+        if (charts[sku]) {
+          charts[sku].destroy();
+          delete charts[sku];
+        }
         chartRow.style.display = "none";
         return;
       }
@@ -141,10 +151,16 @@
         // Adjust price values by dividing each by 10
         const priceValues = data.prices.map(price => parseFloat(price) / 10);
 
-        chartRow.style.display = "table-row";
-        const ctx = document.getElementById(`chart-${sku}`).getContext("2d");
+        // Ensure that any existing chart instance is destroyed before creating a new one
+        if (charts[sku]) {
+          charts[sku].destroy();
+          delete charts[sku];
+        }
 
-        new Chart(ctx, {
+        chartRow.style.display = "table-row";
+        const ctx = document.getElementById(canvasId).getContext("2d");
+
+        charts[sku] = new Chart(ctx, {
           type: "line",
           data: {
             labels: data.dates,
