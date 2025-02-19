@@ -66,13 +66,13 @@
       const response = await fetch(`/products?query=${encodeURIComponent(query)}&offset=${offset}&limit=${limit}`);
       if (!response.ok) {
         console.error("Failed to fetch products:", response.status);
+        loading = false;
         return;
       }
       const products = await response.json();
       console.log("Products loaded:", products);
 
       const container = document.getElementById("product-body");
-      container.innerHTML = "";
 
       products.forEach(product => {
         const row = document.createElement("tr");
@@ -80,7 +80,7 @@
           <td><img src="${product.image_url}" alt="${product.name}" loading="lazy"></td>
           <td><a href="${product.url}" target="_blank" class="product-name">${product.name}</a></td>
           <td>${product.sku}</td>
-          <td class="price" onclick="togglePriceGraph(this, '$1')">€${(product.price).toFixed(2)}</td>
+          <td class="price" onclick="togglePriceGraph(this, '${product.sku}')">€${(product.price / 100).toFixed(2)}</td>
         `;
         container.appendChild(row);
 
@@ -98,6 +98,23 @@
       offset += limit;
       loading = false;
     }
+
+    // Infinite Scroll: Fetch more products when scrolling to the bottom
+    window.addEventListener('scroll', () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight) {
+        fetchProducts();
+      }
+    });
+
+    // Search functionality: Refetch products when the search input changes
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('search').addEventListener('input', (event) => {
+        query = event.target.value;
+        offset = 0;
+        document.getElementById("product-body").innerHTML = '';  // Clear current product list
+        fetchProducts();
+      });
+    });
 
     async function togglePriceGraph(element, sku) {
       const chartRow = element.closest("tr").nextElementSibling;
