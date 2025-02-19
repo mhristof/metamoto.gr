@@ -39,7 +39,8 @@
       margin: 20px auto;
       padding: 10px;
       width: 50%;
-      text-align: center;
+      font-size: 1em;
+      border: 1px solid #ccc;
     }
     .chart-container {
       display: none;
@@ -83,7 +84,7 @@
           <td><img src="${product.image_url}" alt="${product.name}" loading="lazy"></td>
           <td><a href="${product.url}" target="_blank" class="product-name">${product.name}</a></td>
           <td>${product.sku}</td>
-          <td class="price" onclick="togglePriceGraph(this, '${product.sku}')">€${(product.price / 100).toFixed(2)}</td>
+          <td class="price" onclick="togglePriceGraph(this, '${product.sku}')">€${(product.price).toFixed(2)}</td>
         `;
         container.appendChild(row);
 
@@ -109,10 +110,11 @@
       }
     });
 
-    // Search functionality: Refetch products when the search input changes
+    // Search functionality: Trigger search on input event (no button required)
     document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('search').addEventListener('input', (event) => {
-        query = event.target.value;
+      const searchInput = document.getElementById('search');
+      searchInput.addEventListener('input', () => {
+        query = searchInput.value.trim();
         offset = 0;
         document.getElementById("product-body").innerHTML = '';  // Clear current product list
         fetchProducts();
@@ -149,7 +151,7 @@
         }
 
         // Adjust price values by dividing each by 10
-        const priceValues = data.prices.map(price => parseFloat(price) / 10);
+        const priceValues = data.prices.map(price => parseFloat(price) * 10);
 
         // Ensure that any existing chart instance is destroyed before creating a new one
         if (charts[sku]) {
@@ -199,7 +201,9 @@
   </script>
 </head>
 <body>
-  <input type="text" id="search" placeholder="Search products...">
+  <!-- Search input for product name or SKU without a search button -->
+  <input type="text" id="search" placeholder="Search products by name or SKU...">
+
   <table class="product-table">
     <thead>
       <tr>
