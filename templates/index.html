@@ -138,7 +138,8 @@
           return;
         }
 
-        const priceValues = data.prices.map(price => parseFloat(price));
+        // Adjust price values by dividing each by 10
+        const priceValues = data.prices.map(price => parseFloat(price) / 10);
 
         chartRow.style.display = "table-row";
         const ctx = document.getElementById(`chart-${sku}`).getContext("2d");
