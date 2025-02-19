@@ -16,7 +16,22 @@ logger = logging.getLogger(__name__)
 # ClickHouse client
 CLICKHOUSE_TABLE_PRODUCTS = "products"
 CLICKHOUSE_TABLE_METADATA = "product_metadata"
-client = clickhouse_connect.get_client(host="localhost")
+
+for i in range(5):
+    try:
+        client = clickhouse_connect.get_client(
+            host=os.getenv("CLICKHOUSE_HOST", "localhost")
+        )
+
+        break
+    except Exception as e:
+        print(f"Failed to connect to ClickHouse: {e}")
+        time.sleep(5)
+
+        continue
+
+if client.query("SHOW TABLES").result_rows:
+    print("Connected to ClickHouse")
 
 # Create database schema
 client.command("CREATE DATABASE IF NOT EXISTS default")
@@ -24,24 +39,30 @@ client.command("CREATE DATABASE IF NOT EXISTS default")
 # Create tables for optimized storage
 client.command(
     f"""
-    CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_PRODUCTS} (
-        sku String,
-        price Decimal(10,2) DEFAULT 0.00,
-        timestamp Date
-    ) ENGINE = MergeTree()
-    ORDER BY sku
+CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_PRODUCTS}
+(
+    sku String,
+    price Decimal(10, 2) DEFAULT 0.,
+    timestamp DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree()
+ORDER BY (sku, timestamp)
+SETTINGS index_granularity = 8192;
     """
 )
 
 client.command(
     f"""
-    CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_METADATA} (
-        sku String,
-        name LowCardinality(String),
-        url LowCardinality(String),
-        image_url LowCardinality(String)
-    ) ENGINE = MergeTree()
-    ORDER BY sku
+CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_METADATA}
+(
+    sku String,
+    name LowCardinality(String),
+    url LowCardinality(String),
+    image_url LowCardinality(String)
+)
+ENGINE = ReplacingMergeTree()
+ORDER BY sku
+SETTINGS index_granularity = 8192;
     """
 )
 
@@ -83,7 +104,7 @@ def parse_product_data(soup: BeautifulSoup):
     batch_metadata = []
 
     now = datetime.now(timezone.utc)
-    now_date = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    now_date = datetime(now.year, now.month, now.day)  # , tzinfo=timezone.utc)
 
     for item in product_items:
         try:

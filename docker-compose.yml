@@ -1,0 +1,38 @@
+services:
+  clickhouse:
+    image: yandex/clickhouse-server
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./clickhouse:/var/lib/clickhouse
+  app:
+    # build Dockerfile.app
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    volumes:
+      - ./app.py:/app.py:ro
+      - ./templates:/templates:ro
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+    ports:
+      - "5001:5000"
+  scrape:
+    build:
+      context: .
+      dockerfile: Dockerfile.scrape
+    volumes:
+      - ./:/app:ro
+    command:
+      - /bin/bash
+      - -c
+      - |
+        while true; do
+          python3 /app/motokinisi.py
+          python3 /app/motomarket-shop.py
+          sleep 24h
+        done
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+
