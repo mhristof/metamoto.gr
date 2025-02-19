@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infinite Scroll Products</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
+  <style>
+    .product-table {
+      width: 100%;
+      max-width: 800px;
+      margin: auto;
+      border-collapse: collapse;
+    }
+    .product-table th, .product-table td {
+      border-bottom: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+    .product-table th {
+      background-color: #f4f4f4;
+      font-weight: bold;
+    }
+    .product-name {
+      text-decoration: none;
+      color: #007bff;
+      font-weight: bold;
+      text-align: left;
+      display: block;
+    }
+    .product-table img {
+      width: 50px;
+      height: 50px;
+    }
+    #search {
+      display: block;
+      margin: 20px auto;
+      padding: 10px;
+      width: 50%;
+      text-align: center;
+    }
+    .chart-container {
+      display: none;
+      width: 100%;
+      max-width: 600px;
+      margin: 10px auto;
+    }
+    .price {
+      cursor: pointer;
+      color: #007bff;
+      text-decoration: underline;
+    }
+  </style>
+  <script>
+    let offset = 0;
+    const limit = 20;
+    let loading = false;
+    let query = "";
+
+    async function fetchProducts() {
+      if (loading) return;
+      loading = true;
+
+      const response = await fetch(`/products?query=${encodeURIComponent(query)}&offset=${offset}&limit=${limit}`);
+      if (!response.ok) {
+        console.error("Failed to fetch products:", response.status);
+        return;
+      }
+      const products = await response.json();
+      console.log("Products loaded:", products);
+
+      const container = document.getElementById("product-body");
+      container.innerHTML = "";
+
+      products.forEach(product => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><img src="${product.image_url}" alt="${product.name}" loading="lazy"></td>
+          <td><a href="${product.url}" target="_blank" class="product-name">${product.name}</a></td>
+          <td>${product.sku}</td>
+          <td class="price" onclick="togglePriceGraph(this, '$1')">€${(product.price).toFixed(2)}</td>
+        `;
+        container.appendChild(row);
+
+        const chartRow = document.createElement("tr");
+        chartRow.classList.add("chart-container");
+        chartRow.style.display = "none";
+        chartRow.innerHTML = `
+          <td colspan="4">
+            <canvas id="chart-${product.sku}"></canvas>
+          </td>
+        `;
+        container.appendChild(chartRow);
+      });
+
+      offset += limit;
+      loading = false;
+    }
+
+    async function togglePriceGraph(element, sku) {
+      const chartRow = element.closest("tr").nextElementSibling;
+      if (chartRow.style.display === "table-row") {
+        chartRow.style.display = "none";
+        return;
+      }
+
+      console.log(`Fetching price history for SKU: ${sku}`);
+      try {
+        const response = await fetch(`/price-history?sku=${sku}`);
+        if (!response.ok) {
+          console.error("Failed to fetch price history:", response.status);
+          return;
+        }
+        const data = await response.json();
+        console.log("Price history data received:", data);
+
+        if (!Array.isArray(data.dates) || !Array.isArray(data.prices) || data.dates.length === 0) {
+          console.warn("Invalid or empty price history data.");
+          return;
+        }
+
+        const priceValues = data.prices.map(price => parseFloat(price));
+
+        chartRow.style.display = "table-row";
+        const ctx = document.getElementById(`chart-${sku}`).getContext("2d");
+
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: data.dates,
+            datasets: [{
+              label: "Price (€)",
+              data: priceValues,
+              borderColor: "#007bff",
+              backgroundColor: "rgba(0, 123, 255, 0.2)",
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  unit: 'day'
+                }
+              },
+              y: {
+                beginAtZero: false
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching price history:", error);
+      }
+    }
+
+    window.onload = () => {
+      fetchProducts();
+    };
+  </script>
+</head>
+<body>
+  <input type="text" id="search" placeholder="Search products...">
+  <table class="product-table">
+    <thead>
+      <tr>
+        <th>Image</th>
+        <th>Product Name</th>
+        <th>SKU</th>
+        <th>Price (€)</th>
+      </tr>
+    </thead>
+    <tbody id="product-body"></tbody>
+  </table>
+</body>
+</html>
