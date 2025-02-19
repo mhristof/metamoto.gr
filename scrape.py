@@ -4,7 +4,7 @@ import logging
 import requests
 import clickhouse_connect
 from bs4 import BeautifulSoup
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Optional
 
 REQUEST_DELAY = 2  # Delay between requests in seconds
@@ -38,7 +38,6 @@ client.command(
     CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_METADATA} (
         sku String,
         name LowCardinality(String),
-
         url LowCardinality(String),
         image_url LowCardinality(String)
     ) ENGINE = MergeTree()
@@ -46,34 +45,26 @@ client.command(
     """
 )
 
-
 def fetch_page(url: str) -> Optional[str]:
     """Fetch a page using requests."""
     try:
         response = requests.get(url)
         response.raise_for_status()
-
         return response.text
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch page: {url} - {e}")
-
         return None
-
 
 def clean_price(raw_price: str) -> Optional[float]:
     """Convert raw price text to a Decimal-friendly float."""
-
     if not raw_price:
         return None
     try:
         cleaned_price = raw_price.replace("€", "").replace(",", "").strip()
-
         return float(cleaned_price)
     except ValueError:
         logger.warning(f"Skipping invalid price: {raw_price}")
-
         return None
-
 
 def parse_product_data(soup: BeautifulSoup):
     """Parse product data and insert into ClickHouse."""
@@ -83,8 +74,8 @@ def parse_product_data(soup: BeautifulSoup):
     batch_products = []
     batch_metadata = []
 
-    now = datetime.now(UTC)
-    now_date = datetime(now.year, now.month, now.day, tzinfo=UTC)
+    now = datetime.now(timezone.utc)
+    now_date = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
 
     for item in product_items:
         try:
@@ -104,17 +95,19 @@ def parse_product_data(soup: BeautifulSoup):
             price = clean_price(raw_price) or 0.00
 
             image_tag = item.find("img", class_="product-image-photo")
-            image_url = image_tag["src"] if image_tag else ""
+            image_url = ""
+            if image_tag:
+                image_url = image_tag.get("src", "")
+                # Check if the URL contains "lazy.svg" regardless of the full URL
+                if "lazy.svg" in image_url:
+                    image_url = image_tag.get("data-src", image_url)
 
             batch_products.append((sku, price, now_date))
-
             batch_metadata.append((sku, name, url, image_url))
-
         except Exception as e:
             logger.error(f"Error parsing product: {e}")
 
     # Insert batch into ClickHouse
-
     if batch_products:
         client.insert(
             f"{CLICKHOUSE_TABLE_PRODUCTS}",
@@ -133,19 +126,15 @@ def parse_product_data(soup: BeautifulSoup):
         f"Inserted {len(batch_products)} product records and {len(batch_metadata)} metadata records into ClickHouse."
     )
 
-
 def scrape_category(url: str):
     """Scrape all pages for a given category."""
     page = 1
-
     while True:
         logger.info(f"Scraping {url} - Page {page}...")
         page_url = f"{url}?p={page}&product_list_limit=45"
         page_content = fetch_page(page_url)
-
         if not page_content:
             logger.error(f"Failed to fetch page {page}. Stopping scraping.")
-
             break
 
         soup = BeautifulSoup(page_content, "html.parser")
@@ -153,15 +142,12 @@ def scrape_category(url: str):
 
         # Check if there are more pages
         next_page = soup.select_one("li.next a, a.next")
-
         if not next_page or "href" not in next_page.attrs:
             logger.info("No more pages to scrape.")
-
             break
 
         page += 1
         time.sleep(REQUEST_DELAY)
-
 
 def main():
     category_urls = [
@@ -176,7 +162,6 @@ def main():
 
     for category_url in category_urls:
         scrape_category(category_url)
-
 
 if __name__ == "__main__":
     main()
