@@ -24,13 +24,11 @@
       font-weight: bold;
     }
     .product-name {
-      text-decoration: none;
-      color: #007bff;
       font-weight: bold;
       text-align: left;
-      display: block;
+      display: inline;
     }
-    .product-table img {
+    .product-table img.product-image {
       width: 50px;
       height: 50px;
     }
@@ -116,10 +114,19 @@
 
       sortedProducts.forEach(product => {
         const row = document.createElement("tr");
-        // Display the product price directly from the DB value
+        let faviconUrl = "";
+        try {
+          const urlObj = new URL(product.url);
+          faviconUrl = "https://www.google.com/s2/favicons?domain=" + urlObj.hostname;
+        } catch (e) {
+          faviconUrl = "";
+        }
         row.innerHTML = `
-          <td><img src="${product.image_url}" alt="${product.name}" loading="lazy"></td>
-          <td><a href="${product.url}" target="_blank" class="product-name">${product.name}</a></td>
+          <td><img class="product-image" src="${product.image_url}" alt="${product.name}" loading="lazy"></td>
+          <td>
+            <span class="product-name">${product.name}</span>
+            ${faviconUrl ? `<a href="${product.url}" target="_blank"><img src="${faviconUrl}" alt="Favicon" style="width:12px;height:12px;margin-left:5px;"></a>` : ""}
+          </td>
           <td>${product.sku}</td>
           <td class="price" onclick="togglePriceGraph(this, '${product.sku}')">€${parseFloat(product.price).toFixed(2)}</td>
         `;
