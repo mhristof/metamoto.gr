@@ -127,6 +127,9 @@ def stats():
             "total_distinct_products": total_distinct_products,
             "entries_per_day": entries_per_day,
             "duplicate_skus": duplicate_skus,
+            "items_per_host": client.query(
+                "SELECT replaceRegexpOne(url, '^https?://([^/]+).*', '\\1') AS hostname, count(*) AS count FROM default.product_metadata GROUP BY hostname ORDER BY count DESC"
+            ).result_rows,
         }
     )
 
