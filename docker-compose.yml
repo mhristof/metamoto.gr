@@ -6,8 +6,34 @@ services:
       - "9000:9000"
     volumes:
       - ./clickhouse:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "-q", "SELECT 1"]
+      interval: 1s
+      timeout: 10s
+      retries: 30
+  migrations:
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: Dockerfile.scrape
+    command:
+      - python3
+      - /app/migrations.py
+    volumes:
+      - ./:/app:ro
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
   app:
-    # build Dockerfile.app
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
     build:
       context: .
       dockerfile: Dockerfile.app
@@ -19,6 +45,9 @@ services:
     ports:
       - "5001:5000"
   scrape:
+    depends_on:
+      app:
+        condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile.scrape

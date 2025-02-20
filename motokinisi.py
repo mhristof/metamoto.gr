@@ -17,54 +17,7 @@ logger = logging.getLogger(__name__)
 CLICKHOUSE_TABLE_PRODUCTS = "products"
 CLICKHOUSE_TABLE_METADATA = "product_metadata"
 
-for i in range(5):
-    try:
-        client = clickhouse_connect.get_client(
-            host=os.getenv("CLICKHOUSE_HOST", "localhost")
-        )
-
-        break
-    except Exception as e:
-        print(f"Failed to connect to ClickHouse: {e}")
-        time.sleep(5)
-
-        continue
-
-if client.query("SHOW TABLES").result_rows:
-    print("Connected to ClickHouse")
-
-# Create database schema
-client.command("CREATE DATABASE IF NOT EXISTS default")
-
-# Create tables for optimized storage
-client.command(
-    f"""
-CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_PRODUCTS}
-(
-    sku String,
-    price Decimal(10, 2) DEFAULT 0.,
-    timestamp DateTime DEFAULT now()
-)
-ENGINE = ReplacingMergeTree()
-ORDER BY (sku, timestamp)
-SETTINGS index_granularity = 8192;
-    """
-)
-
-client.command(
-    f"""
-CREATE TABLE IF NOT EXISTS {CLICKHOUSE_TABLE_METADATA}
-(
-    sku String,
-    name LowCardinality(String),
-    url LowCardinality(String),
-    image_url LowCardinality(String)
-)
-ENGINE = ReplacingMergeTree()
-ORDER BY sku
-SETTINGS index_granularity = 8192;
-    """
-)
+client = clickhouse_connect.get_client(host=os.getenv("CLICKHOUSE_HOST", "localhost"))
 
 
 def fetch_page(url: str) -> Optional[str]:
