@@ -1,5 +1,4 @@
 import os
-import time
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import clickhouse_connect
@@ -7,25 +6,8 @@ import clickhouse_connect
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 
-# Connect to ClickHouse (host is localhost, no username or password required)
-
-for i in range(5):
-    try:
-        client = clickhouse_connect.get_client(
-            host=os.getenv("CLICKHOUSE_HOST", "localhost")
-        )
-
-        break
-    except Exception as e:
-        print(f"Failed to connect to ClickHouse: {e}")
-        time.sleep(5)
-
-        continue
-
-# check show tables
-
-if client.query("SHOW TABLES").result_rows:
-    print("Connected to ClickHouse")
+clickhouse_host = os.environ.get("CLICKHOUSE_HOST", "localhost")
+client = clickhouse_connect.get_client(host=clickhouse_host)
 
 
 @app.route("/")
@@ -39,7 +21,27 @@ def get_products():
     offset = int(request.args.get("offset", 0))
     limit = int(request.args.get("limit", 20))
 
-    sql = """
+    # Split the search query into individual terms
+    terms = query.strip().split() if query.strip() else []
+    params = {"limit": limit, "offset": offset}
+
+    # Build the WHERE clause dynamically based on search terms.
+    # Each term must be present in either m.name or m.sku.
+
+    if terms:
+        conditions = []
+
+        for i, term in enumerate(terms):
+            param_name = f"term{i}"
+            conditions.append(
+                f"(m.name ILIKE %({param_name})s OR m.sku ILIKE %({param_name})s)"
+            )
+            params[param_name] = f"%{term}%"
+        where_clause = " AND ".join(conditions)
+    else:
+        where_clause = "1"  # No filtering if no query provided
+
+    sql = f"""
         SELECT
             p.sku,
             argMax(m.name, p.timestamp) AS name,
@@ -49,13 +51,11 @@ def get_products():
             max(p.timestamp) AS timestamp
         FROM default.products p
         JOIN default.product_metadata m ON p.sku = m.sku
-        WHERE m.name ILIKE %(query)s OR m.sku ILIKE %(query)s
+        WHERE {where_clause}
         GROUP BY p.sku
         ORDER BY name ASC
         LIMIT %(limit)s OFFSET %(offset)s
     """
-
-    params = {"query": f"%{query}%", "limit": limit, "offset": offset}
 
     results = client.query(sql, params).result_rows
 
@@ -127,4 +127,4 @@ def stats():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0")
+    app.run(debug=True, host="0.0.0.0", port=5000)
