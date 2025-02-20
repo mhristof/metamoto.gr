@@ -117,11 +117,16 @@ def stats():
         ).result_rows
     }
 
+    duplicate_skus = client.query(
+        "SELECT sku, COUNT(*) AS count FROM default.product_metadata GROUP BY sku HAVING count > 1"
+    ).result_rows
+
     return jsonify(
         {
             "total_products": total_products,
             "total_distinct_products": total_distinct_products,
             "entries_per_day": entries_per_day,
+            "duplicate_skus": duplicate_skus,
         }
     )
 
