@@ -1,3 +1,25 @@
 FROM python:3.13.1
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 RUN pip install requests clickhouse-connect beautifulsoup4 selenium
+
+RUN apt-get update &&\
+        apt-get install -y chromium-driver &&\
+        rm -rf /var/lib/apt/lists/*
+
+RUN apt-get install -y apt-transport-https ca-certificates curl gnupg &&\
+    curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg &&\
+    ARCH=$(dpkg --print-architecture) &&\
+    echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb stable main" | tee /etc/apt/sources.list.d/clickhouse.list &&\
+    apt-get update &&\
+    apt-get install -y clickhouse-client &&\
+    rm -rf /var/lib/apt/lists/*
+
+COPY ./scrape.entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
+
+
+WORKDIR /app
+
+ENTRYPOINT ["/entrypoint.sh"]

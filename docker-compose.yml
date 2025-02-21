@@ -18,6 +18,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.scrape
+    entrypoint: []
     command:
       - python3
       - /app/migrations.py
@@ -45,23 +46,16 @@ services:
     ports:
       - "5001:5000"
   scrape:
+    platform: linux/x86_64
     depends_on:
       app:
         condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile.scrape
+
     volumes:
       - ./:/app:ro
-    command:
-      - /bin/bash
-      - -c
-      - |
-        while true; do
-          python3 /app/motokinisi.py
-          python3 /app/motomarket-shop.py
-          sleep 24h
-        done
     environment:
       - CLICKHOUSE_HOST=clickhouse
 
