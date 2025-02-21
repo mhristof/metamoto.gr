@@ -1,10 +1,20 @@
 import os
+import logging
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import clickhouse_connect
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
+
+# Disable logging for /health route by filtering out log messages that include "/health"
+class HealthFilter(logging.Filter):
+    def filter(self, record):
+        # Return False to filter out log records that mention "/health"
+        return "/health" not in record.getMessage()
+
+werkzeug_logger = logging.getLogger("werkzeug")
+werkzeug_logger.addFilter(HealthFilter())
 
 clickhouse_host = os.environ.get("CLICKHOUSE_HOST", "localhost")
 client = clickhouse_connect.get_client(host=clickhouse_host)
@@ -27,10 +37,8 @@ def get_products():
 
     # Build the WHERE clause dynamically based on search terms.
     # Each term must be present in either m.name or m.sku.
-
     if terms:
         conditions = []
-
         for i, term in enumerate(terms):
             param_name = f"term{i}"
             conditions.append(
@@ -74,11 +82,9 @@ def get_products():
     return jsonify(products)
 
 
-# New route for fetching price history
 @app.route("/price-history", methods=["GET"])
 def price_history():
     sku = request.args.get("sku", "")
-
     if not sku:
         return jsonify({"error": "Missing SKU"}), 400
 
@@ -121,15 +127,17 @@ def stats():
         "SELECT sku, COUNT(*) AS count FROM default.product_metadata GROUP BY sku HAVING count > 1"
     ).result_rows
 
+    items_per_host = client.query(
+        "SELECT replaceRegexpOne(url, '^https?://([^/]+).*', '\\1') AS hostname, count(*) AS count FROM default.product_metadata GROUP BY hostname ORDER BY count DESC"
+    ).result_rows
+
     return jsonify(
         {
             "total_products": total_products,
             "total_distinct_products": total_distinct_products,
             "entries_per_day": entries_per_day,
             "duplicate_skus": duplicate_skus,
-            "items_per_host": client.query(
-                "SELECT replaceRegexpOne(url, '^https?://([^/]+).*', '\\1') AS hostname, count(*) AS count FROM default.product_metadata GROUP BY hostname ORDER BY count DESC"
-            ).result_rows,
+            "items_per_host": items_per_host,
         }
     )
 
