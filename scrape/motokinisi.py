@@ -143,6 +143,7 @@ def scrape_category(url: str):
 
 def main():
     category_urls = [
+        "https://motokinisi.gr/gr/krani.html",
         "https://motokinisi.gr/gr/axesoyar-anabati.html",
         "https://motokinisi.gr/gr/axesoyar-moto.html",
         "https://motokinisi.gr/gr/endysi.html",
