@@ -34,14 +34,17 @@ def fetch_page(url: str) -> Optional[str]:
 
 
 def clean_price(raw_price: str) -> Optional[float]:
-    """Convert raw price text to a Decimal-friendly float."""
+    """Convert raw price text in European format (e.g., "1.400,00 €") to a float."""
 
     if not raw_price:
         return None
     try:
-        cleaned_price = raw_price.replace("€", "").replace(",", "").strip()
+        # Remove the Euro symbol and any surrounding whitespace
+        cleaned = raw_price.replace("€", "").strip()
+        # Remove the thousands separator (dot) and replace the decimal comma with a dot
+        cleaned = cleaned.replace(".", "").replace(",", ".")
 
-        return float(cleaned_price) / 100
+        return float(cleaned)
     except ValueError:
         logger.warning(f"Skipping invalid price: {raw_price}")
 
@@ -57,7 +60,7 @@ def parse_product_data(soup: BeautifulSoup):
     batch_metadata = []
 
     now = datetime.now(timezone.utc)
-    now_date = datetime(now.year, now.month, now.day)  # , tzinfo=timezone.utc)
+    now_date = datetime(now.year, now.month, now.day)
 
     for item in product_items:
         try:
@@ -81,7 +84,6 @@ def parse_product_data(soup: BeautifulSoup):
 
             if image_tag:
                 image_url = image_tag.get("src", "")
-                # Check if the URL contains "lazy.svg" regardless of the full URL
 
                 if "lazy.svg" in image_url:
                     image_url = image_tag.get("data-src", image_url)
