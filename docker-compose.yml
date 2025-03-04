@@ -73,18 +73,3 @@ services:
       - ./:/app:ro
     environment:
       - CLICKHOUSE_HOST=clickhouse
-  check-image:
-    platform: linux/x86_64
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-    build:
-      context: .
-      dockerfile: Dockerfile.tensor
-    command:
-      - sleep
-      - infinity
-    volumes:
-      - ./:/app:ro
-    environment:
-      - CLICKHOUSE_HOST=clickhouse
