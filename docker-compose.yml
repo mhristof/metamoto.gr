@@ -45,7 +45,7 @@ services:
       - CLICKHOUSE_HOST=clickhouse
     ports:
       - "5001:5000"
-  scrape:
+  scrape-mk:
     platform: linux/x86_64
     depends_on:
       app:
@@ -53,9 +53,38 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.scrape
-
+    command:
+      - /app/scrape/motokinisi.py
     volumes:
       - ./:/app:ro
     environment:
       - CLICKHOUSE_HOST=clickhouse
-
+  scrape-mm-shop:
+    platform: linux/x86_64
+    depends_on:
+      app:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: Dockerfile.scrape
+    command:
+      - /app/scrape/motomarket-shop.py
+    volumes:
+      - ./:/app:ro
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+  check-image:
+    platform: linux/x86_64
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: Dockerfile.tensor
+    command:
+      - sleep
+      - infinity
+    volumes:
+      - ./:/app:ro
+    environment:
+      - CLICKHOUSE_HOST=clickhouse

@@ -127,6 +127,8 @@ def scrape_products_from_page(page_url, driver):
             }
         )
 
+    print("Found", len(page_products), "products on page", page_url)
+
     return page_products
 
 
