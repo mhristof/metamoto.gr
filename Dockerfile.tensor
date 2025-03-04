@@ -1,0 +1,30 @@
+FROM python:3.10-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies including OpenCV requirements
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+        tensorflow-cpu==2.15.0 \
+clickhouse-connect==0.8.3 \
+requests==2.31.0 \
+pillow==10.2.0 \
+numpy==1.26.3 \
+scikit-learn==1.4.0
+
+# Copy the application code
+#COPY . .
+
+# Create directories for image and feature caching
+RUN mkdir -p image_cache feature_cache
+
+# Command to run the application
+CMD ["python", "check-image.py"]
