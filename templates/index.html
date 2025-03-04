@@ -1,22 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product Price Comparison</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/moment"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
   <style>
-    /* Basic styling */
-    body { font-family: Arial, sans-serif; }
-    #search {
-      display: block;
-      margin: 20px auto;
-      padding: 10px;
-      width: 50%;
-      font-size: 1em;
-      border: 1px solid #ccc;
+    body {
+      font-family: Arial, sans-serif;
+      padding-bottom: 80px; /* extra space for fixed footer */
     }
     .product-table {
       width: 100%;
@@ -24,8 +18,7 @@
       margin: auto;
       border-collapse: collapse;
     }
-    .product-table th,
-    .product-table td {
+    .product-table th, .product-table td {
       border-bottom: 1px solid #ddd;
       padding: 10px;
       text-align: center;
@@ -43,6 +36,20 @@
       width: 50px;
       height: 50px;
     }
+    #search {
+      display: block;
+      margin: 20px auto;
+      padding: 10px;
+      width: 50%;
+      font-size: 1em;
+      border: 1px solid #ccc;
+    }
+    .chart-container {
+      display: none;
+      width: 100%;
+      max-width: 600px;
+      margin: 10px auto;
+    }
     .price {
       cursor: pointer;
       color: #007bff;
@@ -54,24 +61,29 @@
     #price-sort-icon {
       margin-left: 5px;
     }
-    .chart-container {
-      display: none;
-      width: 100%;
-      max-width: 600px;
-      margin: 10px auto;
-    }
     .similar-links {
       display: inline-block;
       margin-left: 5px;
     }
-    /* Toggle switch styling for filtering */
+    /* Footer styling with toggle switch */
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #fff;
+      text-align: center;
+      padding: 8px 0;
+      border-top: 1px solid #ddd;
+      font-size: 0.8em;
+    }
     .switch {
       position: relative;
       display: inline-block;
       width: 50px;
       height: 24px;
       vertical-align: middle;
-      margin-left: 8px;
+      margin-left: 10px;
     }
     .switch input {
       opacity: 0;
@@ -83,7 +95,7 @@
       cursor: pointer;
       top: 0; left: 0; right: 0; bottom: 0;
       background-color: #ccc;
-      transition: .4s;
+      transition: 0.4s;
       border-radius: 24px;
     }
     .slider:before {
@@ -94,7 +106,7 @@
       left: 3px;
       bottom: 3px;
       background-color: white;
-      transition: .4s;
+      transition: 0.4s;
       border-radius: 50%;
     }
     input:checked + .slider {
@@ -114,14 +126,14 @@
     const limit = 20;
     let loading = false;
     let query = "";
-    let sortOrder = "desc"; // default sort order
+    let sortOrder = "desc"; // Default sort order is descending.
     let productsData = [];
     
-    // Chart instances keyed by SKU
+    // Global object to store Chart instances keyed by SKU
     let charts = {};
-    // Cache for similar products data
+    // Global cache for similarity data
     let similarityCache = {};
-    // Global flag to filter only products with similar ones
+    // Global flag to filter products with similar items only
     let filterSimilar = false;
     
     async function fetchProducts() {
@@ -141,8 +153,8 @@
       loading = false;
     }
     
-    function renderProducts() {
-      // Destroy existing charts
+    async function renderProducts() {
+      // Destroy any existing charts before re-rendering
       for (let key in charts) {
         if (charts[key]) {
           charts[key].destroy();
@@ -152,8 +164,11 @@
       const container = document.getElementById("product-body");
       container.innerHTML = "";
       let sortedProducts = [...productsData];
-      sortedProducts.sort((a, b) => sortOrder === "asc" ? a.price - b.price : b.price - a.price);
-      
+      if (sortOrder === "asc") {
+        sortedProducts.sort((a, b) => a.price - b.price);
+      } else if (sortOrder === "desc") {
+        sortedProducts.sort((a, b) => b.price - a.price);
+      }
       for (const product of sortedProducts) {
         const row = document.createElement("tr");
         row.setAttribute("data-sku", product.sku);
@@ -168,69 +183,66 @@
           <td><img class="product-image" src="${product.image_url}" alt="${product.name}" loading="lazy"></td>
           <td>
             <span class="product-name">${product.name}</span>
-            ${faviconUrl ? `<a href="${product.url}" target="_blank"><img src="${faviconUrl}" alt="Fav" style="width:12px;height:12px;margin-left:5px;"></a>` : ""}
+            ${faviconUrl ? `<a href="${product.url}" target="_blank"><img src="${faviconUrl}" alt="Favicon" style="width:12px;height:12px;margin-left:5px;"></a>` : ""}
             <span id="similar-links-${product.sku}" class="similar-links"></span>
           </td>
           <td>${product.sku}</td>
           <td class="price" onclick="togglePriceGraph(this, '${product.sku}')">€${parseFloat(product.price).toFixed(2)}</td>
         `;
         container.appendChild(row);
-        
-        // Price history chart row
         const chartRow = document.createElement("tr");
         chartRow.classList.add("chart-container");
         chartRow.setAttribute("data-sku", `chart-${product.sku}`);
         chartRow.style.display = "none";
         chartRow.innerHTML = `<td colspan="4"><canvas id="chart-${product.sku}"></canvas></td>`;
         container.appendChild(chartRow);
-        
-        // Fetch similar products for each SKU
         fetchSimilarProducts(product.sku);
       }
-      
-      // Apply filtering if active
+      // After rendering, apply the current filter
       applySimilarFilter();
-      
-      // If filtered view leaves page short, try to load more
-      if(document.body.offsetHeight < window.innerHeight && !loading) {
-        fetchProducts();
-      }
     }
     
     function toggleSortOrder() {
-      sortOrder = sortOrder === "desc" ? "asc" : "desc";
+      sortOrder = (sortOrder === "desc") ? "asc" : "desc";
       updateSortIcon();
       renderProducts();
     }
     
     function updateSortIcon() {
       const icon = document.getElementById("price-sort-icon");
-      icon.innerHTML = sortOrder === "desc" ? "&#x2193;" : "&#x2191;";
+      icon.innerHTML = (sortOrder === "desc") ? "&#x2193;" : "&#x2191;";
     }
     
-    // Toggle filtering: only show products with similar ones if filterSimilar is true
+    // Toggle function for the footer switch
     function toggleSimilarFilter() {
-      filterSimilar = !filterSimilar;
-      const toggleLabel = document.getElementById("toggle-similar-label");
-      toggleLabel.innerText = filterSimilar ? "Show All Items" : "Show Only Items with Similar";
+      const checkbox = document.getElementById("toggle-similar");
+      filterSimilar = checkbox.checked;
       applySimilarFilter();
     }
     
+    // Applies the filter: hide rows that do not have similar items if filterSimilar is true.
     function applySimilarFilter() {
-      const container = document.getElementById("product-body");
-      const rows = container.querySelectorAll("tr[data-sku]");
+      const rows = document.querySelectorAll("tr[data-sku]");
       rows.forEach(row => {
         const sku = row.getAttribute("data-sku");
-        const similarLinks = document.getElementById(`similar-links-${sku}`);
+        const similarContainer = document.getElementById(`similar-links-${sku}`);
         if (filterSimilar) {
-          // Only show rows if similar-links span is non-empty
-          row.style.display = (similarLinks && similarLinks.innerHTML.trim() !== "") ? "" : "none";
+          // Show the row only if similarContainer is nonempty.
+          row.style.display = (similarContainer && similarContainer.innerHTML.trim() !== "") ? "" : "none";
+          // Hide associated chart row.
           const chartRow = document.querySelector(`tr[data-sku="chart-${sku}"]`);
           if (chartRow) chartRow.style.display = "none";
         } else {
           row.style.display = "";
         }
       });
+      // Delay a check to see if content height is too short, then fetch more products.
+      setTimeout(() => {
+        const container = document.getElementById("product-body");
+        if (filterSimilar && container.offsetHeight < window.innerHeight && !loading) {
+          fetchProducts();
+        }
+      }, 100);
     }
     
     window.addEventListener('scroll', () => {
@@ -248,7 +260,6 @@
         fetchProducts();
       });
       updateSortIcon();
-      fetchProducts();
     });
     
     async function togglePriceGraph(element, sku) {
@@ -263,83 +274,52 @@
         return;
       }
       console.log(`Fetching price history for SKU: ${sku}`);
-      let mainData;
       try {
         const response = await fetch(`/price-history?sku=${sku}`);
         if (!response.ok) {
-          console.error("Failed to fetch price history for main product:", response.status);
+          console.error("Failed to fetch price history:", response.status);
           return;
         }
-        mainData = await response.json();
-        if (!Array.isArray(mainData.dates) || !Array.isArray(mainData.prices) || mainData.dates.length === 0) {
-          console.warn("Invalid or empty price history data for main product.");
+        const data = await response.json();
+        console.log("Price history data received:", data);
+        if (!Array.isArray(data.dates) || !Array.isArray(data.prices) || data.dates.length === 0) {
+          console.warn("Invalid or empty price history data.");
           return;
         }
-      } catch (error) {
-        console.error("Error fetching main product price history:", error);
-        return;
-      }
-      const mainPrices = mainData.prices.map(price => parseFloat(price) * 10);
-      const datasets = [{
-        label: "Main Product",
-        data: mainPrices,
-        borderColor: "#007bff",
-        backgroundColor: "rgba(0, 123, 255, 0.2)",
-        fill: true
-      }];
-      if (similarityCache[sku] && Array.isArray(similarityCache[sku].similar_products) && similarityCache[sku].similar_products.length > 0) {
-        const similarPromises = similarityCache[sku].similar_products.map(async (simProd) => {
-          try {
-            const res = await fetch(`/price-history?sku=${simProd.sku}`);
-            if (!res.ok) {
-              console.error(`Failed to fetch price history for similar product ${simProd.sku}:`, res.status);
-              return null;
-            }
-            const simData = await res.json();
-            if (!Array.isArray(simData.dates) || !Array.isArray(simData.prices) || simData.dates.length === 0) {
-              console.warn(`Invalid or empty price history data for similar product ${simProd.sku}.`);
-              return null;
-            }
-            const simPrices = simData.prices.map(price => parseFloat(price) * 10);
-            return {
-              label: `Similar (${simProd.shop})`,
-              data: simPrices,
-              borderColor: "#28a745",
-              backgroundColor: "rgba(40, 167, 69, 0.2)",
+        const priceValues = data.prices.map(price => parseFloat(price) * 10);
+        if (charts[sku]) {
+          charts[sku].destroy();
+          delete charts[sku];
+        }
+        chartRow.style.display = "table-row";
+        const ctx = document.getElementById(canvasId).getContext("2d");
+        charts[sku] = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: data.dates,
+            datasets: [{
+              label: "Price (€)",
+              data: priceValues,
+              borderColor: "#007bff",
+              backgroundColor: "rgba(0, 123, 255, 0.2)",
               fill: true
-            };
-          } catch (err) {
-            console.error(`Error fetching price history for similar product ${simProd.sku}:`, err);
-            return null;
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                type: 'time',
+                time: { unit: 'day' }
+              },
+              y: { beginAtZero: false }
+            }
           }
         });
-        const similarDatasets = await Promise.all(similarPromises);
-        similarDatasets.forEach(ds => {
-          if (ds !== null) {
-            datasets.push(ds);
-          }
-        });
+      } catch (error) {
+        console.error("Error fetching price history:", error);
       }
-      chartRow.style.display = "table-row";
-      const ctx = document.getElementById(canvasId).getContext("2d");
-      charts[sku] = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: mainData.dates,
-          datasets: datasets
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              type: "time",
-              time: { unit: "day" }
-            },
-            y: { beginAtZero: false }
-          }
-        }
-      });
     }
     
     async function fetchSimilarProducts(sku) {
@@ -368,7 +348,6 @@
     function renderSimilarProducts(container, data) {
       if (!data || !Array.isArray(data.similar_products) || data.similar_products.length === 0) {
         container.innerHTML = "";
-        applySimilarFilter();
         return;
       }
       let html = "";
@@ -380,25 +359,19 @@
         } catch (e) {
           faviconUrl = "";
         }
+        // Display only the shop's favicon as a clickable link.
         html += `<a href="${product.url}" target="_blank" title="${product.shop}"><img src="${faviconUrl}" alt="" style="width:12px;height:12px;margin-left:5px;"></a>`;
       });
       container.innerHTML = html;
-      applySimilarFilter();
     }
+    
+    window.onload = () => {
+      fetchProducts();
+    };
   </script>
 </head>
 <body>
-  <!-- Search input -->
-  <input type="text" id="search" placeholder="Search products by name or SKU..." />
-  
-  <!-- Toggle switch for filtering with a title -->
-  <label class="switch" title="Toggle to filter only items with similar products">
-    <input type="checkbox" id="toggle-similar" onclick="toggleSimilarFilter()" />
-    <span class="slider"></span>
-  </label>
-  <span id="toggle-similar-label" class="toggle-label">Show Only Items with Similar</span>
-  
-  <!-- Product table -->
+  <input type="text" id="search" placeholder="Search products by name or SKU...">
   <table class="product-table">
     <thead>
       <tr>
@@ -412,5 +385,14 @@
     </thead>
     <tbody id="product-body"></tbody>
   </table>
+  <footer>
+    <small>Version: {{ git_version }}</small>
+    &nbsp;&nbsp;
+    <label class="switch" title="Toggle to filter only items with similar products">
+      <input type="checkbox" id="toggle-similar" onclick="toggleSimilarFilter()">
+      <span class="slider"></span>
+    </label>
+    <span id="toggle-similar-label" class="toggle-label">Show Only Items with Similar</span>
+  </footer>
 </body>
 </html>
