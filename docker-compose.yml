@@ -43,6 +43,7 @@ services:
       - ./templates:/templates:ro
     environment:
       - CLICKHOUSE_HOST=clickhouse
+      - GIT_VERSION=${GIT_VERSION}
     ports:
       - "5001:5000"
   scrape-mk:

@@ -1,5 +1,8 @@
 DOCKER_COMPOSE := $(or $(shell command -v docker-compose),docker compose)
 
+GIT_VERSION := $(or $(shell git describe --always --dirty),unknown-make)
+export GIT_VERSION
+
 .PHONY: restart
 
 restart:
