@@ -7,6 +7,15 @@ import clickhouse_connect
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 
+# Define a filter to hide logs that include "/health"
+class HealthFilter(logging.Filter):
+    def filter(self, record):
+        return "/health" not in record.getMessage()
+
+# Apply the filter to the Werkzeug logger
+werkzeug_logger = logging.getLogger("werkzeug")
+werkzeug_logger.addFilter(HealthFilter())
+
 clickhouse_host = os.environ.get("CLICKHOUSE_HOST", "localhost")
 
 def get_ch_client():
