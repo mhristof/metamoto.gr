@@ -275,18 +275,87 @@
       }
       console.log(`Fetching price history for SKU: ${sku}`);
       try {
+        // Fetch main product price history
         const response = await fetch(`/price-history?sku=${sku}`);
         if (!response.ok) {
           console.error("Failed to fetch price history:", response.status);
           return;
         }
-        const data = await response.json();
-        console.log("Price history data received:", data);
-        if (!Array.isArray(data.dates) || !Array.isArray(data.prices) || data.dates.length === 0) {
-          console.warn("Invalid or empty price history data.");
+        const mainData = await response.json();
+        console.log("Main price history data received:", mainData);
+        if (!Array.isArray(mainData.dates) || !Array.isArray(mainData.prices) || mainData.dates.length === 0) {
+          console.warn("Invalid or empty main price history data.");
           return;
         }
-        const priceValues = data.prices.map(price => parseFloat(price) * 10);
+        const mainPriceValues = mainData.prices.map(price => parseFloat(price) * 10);
+        
+        // Get base URL from product info to use as the label.
+        let baseUrlLabel = "Main Product Price (€)";
+        const productInfo = productsData.find(p => p.sku === sku);
+        if (productInfo && productInfo.url) {
+          try {
+            baseUrlLabel = new URL(productInfo.url).hostname;
+          } catch (e) {
+            console.error("Error parsing product URL:", e);
+          }
+        }
+        
+        // Prepare datasets starting with the main product.
+        const datasets = [{
+          label: baseUrlLabel,
+          data: mainPriceValues,
+          borderColor: "#007bff",
+          backgroundColor: "rgba(0, 123, 255, 0.2)",
+          fill: true
+        }];
+        
+        // Check for similar products and fetch their price histories if available.
+        const similarData = similarityCache[sku];
+        if (similarData && similarData.similar_products && similarData.similar_products.length > 0) {
+          // Define a color palette for similar product datasets.
+          const colors = [
+            { border: "rgba(255, 99, 132, 1)", background: "rgba(255, 99, 132, 0.2)" },
+            { border: "rgba(54, 162, 235, 1)", background: "rgba(54, 162, 235, 0.2)" },
+            { border: "rgba(255, 206, 86, 1)", background: "rgba(255, 206, 86, 0.2)" },
+            { border: "rgba(75, 192, 192, 1)", background: "rgba(75, 192, 192, 0.2)" },
+            { border: "rgba(153, 102, 255, 1)", background: "rgba(153, 102, 255, 0.2)" }
+          ];
+          
+          // Fetch price history for each similar product concurrently.
+          const similarHistories = await Promise.all(similarData.similar_products.map(async (simProduct, index) => {
+            if (!simProduct.sku) return null;
+            const simResponse = await fetch(`/price-history?sku=${simProduct.sku}`);
+            if (!simResponse.ok) {
+              console.error("Failed to fetch price history for similar product SKU:", simProduct.sku);
+              return null;
+            }
+            const simData = await simResponse.json();
+            if (!Array.isArray(simData.dates) || !Array.isArray(simData.prices) || simData.dates.length === 0) {
+              return null;
+            }
+            return {
+              sku: simProduct.sku,
+              label: simProduct.shop || `Similar (${simProduct.sku})`,
+              prices: simData.prices.map(price => parseFloat(price) * 10),
+              color: colors[index % colors.length]
+            };
+          }));
+          
+          // Add each valid similar product price history to the datasets.
+          similarHistories.forEach(simHistory => {
+            if (simHistory) {
+              datasets.push({
+                label: simHistory.label,
+                data: simHistory.prices,
+                borderColor: simHistory.color.border,
+                backgroundColor: simHistory.color.background,
+                fill: true
+              });
+            }
+          });
+        }
+        
+        // Destroy any existing chart for this SKU.
         if (charts[sku]) {
           charts[sku].destroy();
           delete charts[sku];
@@ -296,14 +365,8 @@
         charts[sku] = new Chart(ctx, {
           type: "line",
           data: {
-            labels: data.dates,
-            datasets: [{
-              label: "Price (€)",
-              data: priceValues,
-              borderColor: "#007bff",
-              backgroundColor: "rgba(0, 123, 255, 0.2)",
-              fill: true
-            }]
+            labels: mainData.dates,
+            datasets: datasets
           },
           options: {
             responsive: true,
